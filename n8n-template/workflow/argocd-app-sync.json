@@ -1,0 +1,539 @@
+{
+  "name": "Argocd Sync App",
+  "nodes": [
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel",
+          "mode": "name"
+        },
+        "text": "=Deploy *{{ $json.status.resources[3].name }}* success! :rocket:\nLatest tag: {{ $json.status.summary.images[0] }}",
+        "otherOptions": {}
+      },
+      "id": "318eb7d2-5c90-4bc0-9ba0-d8d17d74d876",
+      "name": "Success Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        280
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel",
+          "mode": "name"
+        },
+        "text": "=Processing argocd sync for {{ $json.appName }}! please wait a minute   \nTrigger by: {{ $json.user_name }}",
+        "otherOptions": {}
+      },
+      "id": "b03aab8f-b1f7-4835-a46d-3ef0f4b09c1f",
+      "name": "Proceed Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        640
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://argocd-argo-cd-server.argocd.svc.cluster.local/api/v1/applications/{{ $json.appName }}/sync   ",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "bf701a86-6e12-4019-aabe-ae344ba5a841",
+      "name": "ArgoCD Sync Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1860,
+        420
+      ],
+      "retryOnFail": true,
+      "notesInFlow": false,
+      "alwaysOutputData": true,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 70,
+        "unit": "seconds"
+      },
+      "id": "1eb6186e-1649-45b3-8024-487034779724",
+      "name": "Wait for deployment",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2580,
+        380
+      ],
+      "webhookId": "a7ea0376-dd8b-4870-959e-5067e0e33681"
+    },
+    {
+      "parameters": {
+        "url": "=https://argocd-argo-cd-server.argocd.svc.cluster.local/api/v1/applications/{{ $json.metadata.name }}  ",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "584d1968-280d-44ff-9bb4-06bf41aa9352",
+      "name": "Latest Image Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3000,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel",
+          "mode": "name"
+        },
+        "text": "=There's *no changes* \n{{ $json.status.resources[3].name }} already used the latest image :+1:\nTag: {{ $json.status.summary.images[0] }}",
+        "otherOptions": {}
+      },
+      "id": "d1da955a-d899-419e-a51c-a5bb4345c3cc",
+      "name": "No Changes Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        640
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "bb189c43-e43f-421b-a9c0-165d1d747c02",
+      "name": "No Operation, do nothing",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1660,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\n\nconst arr = $input.all()\nconst headers = arr[0].json.headers\nconst body = arr[0].json.body\n\nconst slackSignature = headers['x-slack-signature']\nconst slackTimestamp = headers['x-slack-request-timestamp']\nconst signingSecret = 'e0461a8d9ca6172179b7b30a2d479ee2'\nconst appName = body['text']\nconst argoPassword = 'DESyKM16M0W84Wxv'\nconst argoUsername = 'admin'\nconst user_name = body['user_name']\nconst channel_name = body['channel_name']\n\n\nconst singleLineBody = Object.keys(body)\n  .map((key) => `${key}=${encodeURIComponent(body[key])}`)\n  .join(\"&\");\n\nlet signature = 'v0:'+ slackTimestamp + ':' + singleLineBody\n\nreturn [{\n  'signature': signature,\n  'slackSignature': slackSignature,\n  'signingSecret': signingSecret,\n  'appName': appName,\n  'user_name': user_name,\n  'channel_name': channel_name\n}];"
+      },
+      "id": "c907ec5a-f4b1-4af2-b99d-2942c725f281",
+      "name": "Authentication Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.slackSignature }}",
+              "value2": "=v0={{ $json.data }}"
+            },
+            {
+              "value1": "={{ $json.channel_name }}",
+              "value2": "testing-channel"
+            }
+          ]
+        }
+      },
+      "id": "3707fa68-7849-4f04-a62e-ee69c18eb8a6",
+      "name": "Is request authenticated?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1420,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status.resources[3].status }}",
+              "operation": "notEqual",
+              "value2": "Synced"
+            }
+          ]
+        }
+      },
+      "id": "7589ebdc-8f9d-4a77-a179-fad766cf47ca",
+      "name": "Is there pending sync?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://argocd-argo-cd-server.argocd.svc.cluster.local/api/v1/session",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "username",
+              "value": "admin"
+            },
+            {
+              "name": "password",
+              "value": "iobsYkwV8n"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "02e5f8f6-fa3a-4dee-9c4e-a22d783d4654",
+      "name": "Generate ArgoCD Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1320,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "028f1a08-07da-45c6-ba8f-f2a8b454516b",
+      "name": "Combine Token & AppName",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1660,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "ed2978e0-897e-4663-999e-c5b24baebb84",
+      "name": "Merge Token and App Name",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        2800,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sync",
+        "responseMode": "=onReceived",
+        "options": {
+          "responseData": "/sync action proceed!"
+        }
+      },
+      "id": "8f048d89-d534-475b-8311-7fb872645473",
+      "name": "Slack Incoming Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        940,
+        460
+      ],
+      "webhookId": "274d841c-d67a-4d84-8551-c5c07e08a3e3"
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ $json.signature }}",
+        "secret": "={{ $json.signingSecret }}"
+      },
+      "id": "fd170f55-45b0-4d2a-9e50-2d1da96510ed",
+      "name": "Hashing",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel",
+          "mode": "name"
+        },
+        "text": "=Oops its failed, please check again your input value :eyes:\n--\nAvailable input value:\n- prod-mock-service\n- prod-backoffice-service\n- prod-qr-service\n- prod-order-service\n- prod-user-service",
+        "otherOptions": {}
+      },
+      "id": "87c48fd8-afb2-4f0e-802e-bbbce1aa29e6",
+      "name": "Wrong Input Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        640
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.error.message }}",
+              "operation": "notContains",
+              "value2": "error"
+            }
+          ]
+        }
+      },
+      "id": "c50acb8b-1afb-4b22-a135-9732e1d511b6",
+      "name": "Is Argocd API call success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2060,
+        420
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Wait for deployment": {
+      "main": [
+        [
+          {
+            "node": "Merge Token and App Name",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Latest Image Check": {
+      "main": [
+        [
+          {
+            "node": "Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authentication Parser": {
+      "main": [
+        [
+          {
+            "node": "Hashing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is request authenticated?": {
+      "main": [
+        [
+          {
+            "node": "Combine Token & AppName",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ArgoCD Sync Call": {
+      "main": [
+        [
+          {
+            "node": "Is Argocd API call success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is there pending sync?": {
+      "main": [
+        [
+          {
+            "node": "Wait for deployment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Changes Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate ArgoCD Token": {
+      "main": [
+        [
+          {
+            "node": "Combine Token & AppName",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Token and App Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Token & AppName": {
+      "main": [
+        [
+          {
+            "node": "ArgoCD Sync Call",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Proceed Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Token and App Name": {
+      "main": [
+        [
+          {
+            "node": "Latest Image Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Incoming Webhook": {
+      "main": [
+        [
+          {
+            "node": "Authentication Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hashing": {
+      "main": [
+        [
+          {
+            "node": "Is request authenticated?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Argocd API call success?": {
+      "main": [
+        [
+          {
+            "node": "Is there pending sync?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wrong Input Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "bb28ef47-b171-4995-a33e-44b9aee33d36",
+  "id": "zOoyPma0d6Mnfg5H",
+  "meta": {
+    "instanceId": "043fa31e328971c1d4885a6f1712fc8dc14ab0d2798a09ea6c65ac61528e7970"
+  },
+  "tags": []
+}

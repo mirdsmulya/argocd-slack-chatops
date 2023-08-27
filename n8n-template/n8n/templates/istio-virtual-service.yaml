@@ -1,0 +1,35 @@
+{{- if .Values.istioIngress.enabled -}}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ .Values.fullnameOverride }}-vs
+  namespace: istio-system
+spec:
+  hosts:
+    - {{ .Values.istioIngress.hostname }}
+  gateways:
+    - {{ .Values.fullnameOverride }}-gateway
+  http:
+    - route:
+        - destination:
+            host: {{ .Values.fullnameOverride }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: {{ .Values.service.port }}
+      corsPolicy:
+        allowOrigins:
+          - exact: "*"
+        allowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        allowHeaders:
+          - authorization
+          - content-type
+          - accept
+          - origin
+          - user-agent
+          - x-target-env
+          - x-target-client
+        allowCredentials: false
+        maxAge: "24h"
+{{- end }}

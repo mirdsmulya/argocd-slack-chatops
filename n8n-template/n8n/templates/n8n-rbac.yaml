@@ -1,0 +1,28 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.fullnameOverride }}-kube-role
+rules:
+{{- range $rule := .Values.serviceAccount.roles }}
+- apiGroups: {{ $rule.apiGroups | toJson }}
+  resources: {{ $rule.resources | toJson }}
+  verbs: {{ $rule.verbs | toJson }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.fullnameOverride }}-sa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.fullnameOverride }}-kube-role-binding
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.fullnameOverride }}-sa
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ .Values.fullnameOverride }}-kube-role
+  apiGroup: rbac.authorization.k8s.io

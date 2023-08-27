@@ -1,0 +1,333 @@
+{
+  "name": "Argocd Rollout Restart",
+  "nodes": [
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ $json.signature }}",
+        "secret": "={{ $json.signingSecret }}"
+      },
+      "id": "6be523d2-ec80-4b40-a8a3-c034129b9aab",
+      "name": "Crypto",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "id": "5b9fa4fc-04f5-45ee-8b3d-dc36c12f9278",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel",
+          "mode": "name"
+        },
+        "text": "=Processing restart for {{ $json.appName }}! please wait a second \nTrigger by: {{ $json.user_name }} ",
+        "otherOptions": {}
+      },
+      "id": "7df4db79-df29-4433-9d50-5e768df0444f",
+      "name": "Processing Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel ",
+          "mode": "name"
+        },
+        "text": "=Oops restart failed, please check again your input value :eyes:\n--\nAvailable input value:\n- mock-service\n- user-service\n- qr-service\n- order-service\n- backoffice-service",
+        "otherOptions": {}
+      },
+      "id": "f30ae967-d90e-4cea-8ded-de7087c2e02a",
+      "name": "Failed Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        280,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#testing-channel",
+          "mode": "name"
+        },
+        "text": "=Restart {{ $json.appName }} success! :rocket:  ",
+        "otherOptions": {}
+      },
+      "id": "c1fcf357-0bff-4cd5-b43d-6610f286dd38",
+      "name": "Success Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        620,
+        460
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "MHeA1zohe3XoDmQV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.error }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "id": "c5c7e207-4a7a-49f2-913a-cc35d64b65f9",
+      "name": "Is restart success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        100,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "38919b73-898b-48be-bbb5-8dc62f3fdc01",
+      "name": "Wait for Restart",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        280,
+        660
+      ],
+      "webhookId": "5978ac71-5ce1-4062-b81b-5d3e71c3487f"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.slackSignature }}",
+              "value2": "=v0={{ $json.data }}"
+            },
+            {
+              "value1": "={{ $json.channel_name }}",
+              "value2": "testing-channel"
+            }
+          ]
+        }
+      },
+      "id": "b671e374-e766-468e-8f57-b6ea371dca6b",
+      "name": "Is request authenticated?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restart",
+        "options": {
+          "responseData": "/restart action proceed!"
+        }
+      },
+      "id": "62764c73-84b9-43f9-a554-c988483c909f",
+      "name": "Incoming Slack Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        700
+      ],
+      "webhookId": "5d7fcd32-bfd9-4e73-80c7-ea02ffa7a4d6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\n\nconst arr = $input.all()\nconst headers = arr[0].json.headers\nconst body = arr[0].json.body\n\nconst slackSignature = headers['x-slack-signature']\nconst slackTimestamp = headers['x-slack-request-timestamp']\nconst signingSecret = 'e0461a8d9ca6172179b7b30a2d479ee2'\nconst appName = body['text']\nconst argoPassword = 'DESyKM16M0W84Wxv'\nconst argoUsername = 'admin'\nconst user_name = body['user_name']\nconst channel_name = body['channel_name']\n\n\nconst singleLineBody = Object.keys(body)\n  .map((key) => `${key}=${encodeURIComponent(body[key])}`)\n  .join(\"&\");\n\nlet signature = 'v0:'+ slackTimestamp + ':' + singleLineBody\n\nreturn [{\n  'signature': signature,\n  'slackSignature': slackSignature,\n  'signingSecret': signingSecret,\n  'appName': appName,\n  'user_name': user_name, \n  'channel_name': channel_name\n}];"
+      },
+      "id": "23ddda74-3d5d-4d50-afa9-77988194d5c3",
+      "name": "Authentication Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        -820,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=kubectl argo rollouts restart {{ $json.appName }} -n prod-frictionless "
+      },
+      "id": "04ec2d62-e062-4e53-9158-6d9798ec4b0a",
+      "name": "Rollouts restart",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        680
+      ],
+      "retryOnFail": true,
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Crypto": {
+      "main": [
+        [
+          {
+            "node": "Is request authenticated?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is restart success?": {
+      "main": [
+        [
+          {
+            "node": "Wait for Restart",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failed Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Restart": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Is request authenticated?": {
+      "main": [
+        [
+          {
+            "node": "Rollouts restart",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Processing Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incoming Slack Webhook": {
+      "main": [
+        [
+          {
+            "node": "Authentication Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authentication Parser": {
+      "main": [
+        [
+          {
+            "node": "Crypto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rollouts restart": {
+      "main": [
+        [
+          {
+            "node": "Is restart success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "3389c350-0a93-4b28-81e6-ccadc67eb11f",
+  "id": "lAoluBqyBBxhANiH",
+  "meta": {
+    "instanceId": "043fa31e328971c1d4885a6f1712fc8dc14ab0d2798a09ea6c65ac61528e7970"
+  },
+  "tags": []
+}
